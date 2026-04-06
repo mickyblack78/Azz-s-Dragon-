@@ -2,12 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dragon Dash</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile Dragon Dash</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: sans-serif; }
-        #gameCanvas { display: block; background: linear-gradient(#87CEEB, #E0F6FF); }
-        #ui { position: absolute; top: 10px; left: 10px; font-size: 24px; font-weight: bold; color: #2d5a27; }
+        /* Prevents mobile scrolling and bouncing */
+        * { touch-action: manipulation; }
+        body { 
+            margin: 0; 
+            padding: 0;
+            overflow: hidden; 
+            background: #87CEEB; 
+            font-family: sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #ui { 
+            position: absolute; 
+            top: 5%; 
+            left: 5%; 
+            font-size: 20px; 
+            font-weight: bold; 
+            color: #1b4332; 
+            z-index: 10;
+        }
+        canvas { display: block; width: 100vw; height: 100vh; }
     </style>
 </head>
 <body>
@@ -19,57 +37,72 @@
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        // Responsive Sizing
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
 
         let score = 0;
-        let gameActive = true;
         let isDancing = false;
         let frame = 0;
 
         const dragon = {
-            x: 100, y: 0, w: 60, h: 60, dy: 0, 
-            jumpForce: -15, gravity: 0.8, grounded: false,
-            danceY: 0
+            x: canvas.width * 0.15, 
+            y: 0, 
+            w: 50, 
+            h: 50, 
+            dy: 0, 
+            jumpForce: -14, 
+            gravity: 0.7, 
+            grounded: false
         };
 
         const obstacles = [];
-        const groundY = canvas.height - 100;
+        const groundY = canvas.height * 0.85;
         dragon.y = groundY - dragon.h;
 
         function spawnObstacle() {
             if (score >= 10 || isDancing) return;
-            const type = Math.random() > 0.5 ? 'log' : 'puddle';
-            obstacles.push({ x: canvas.width, type: type, w: 50, h: 30, passed: false });
+            const isLog = Math.random() > 0.5;
+            obstacles.push({ 
+                x: canvas.width, 
+                type: isLog ? 'log' : 'puddle', 
+                w: 40, 
+                h: isLog ? 40 : 10, 
+                passed: false 
+            });
+        }
+
+        function handleInput(e) {
+            if (e) e.preventDefault();
+            if (dragon.grounded && !isDancing) {
+                dragon.dy = dragon.jumpForce;
+                dragon.grounded = false;
+            }
         }
 
         function drawDragon() {
             ctx.save();
             if (isDancing) {
-                ctx.translate(0, Math.sin(frame * 0.2) * 20);
-                ctx.rotate(Math.sin(frame * 0.1) * 0.2);
+                ctx.translate(0, Math.sin(frame * 0.2) * 30);
+                ctx.rotate(Math.sin(frame * 0.1) * 0.3);
             }
             
-            // Body
+            // Dragon Body
             ctx.fillStyle = '#4CAF50';
             ctx.fillRect(dragon.x, dragon.y, dragon.w, dragon.h);
             
-            // Big Eyes
+            // Eyes
             ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.arc(dragon.x + 45, dragon.y + 15, 12, 0, Math.PI * 2);
+            ctx.arc(dragon.x + 35, dragon.y + 15, 10, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = 'black';
             ctx.beginPath();
-            ctx.arc(dragon.x + 48, dragon.y + 15, 5, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Wings/Spikes
-            ctx.fillStyle = '#2E7D32';
-            ctx.beginPath();
-            ctx.moveTo(dragon.x, dragon.y);
-            ctx.lineTo(dragon.x - 20, dragon.y + 20);
-            ctx.lineTo(dragon.x, dragon.y + 40);
+            ctx.arc(dragon.x + 38, dragon.y + 15, 4, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
         }
@@ -77,12 +110,11 @@
         function update() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Ground
+            // Sky & Ground
             ctx.fillStyle = '#5d4037';
-            ctx.fillRect(0, groundY, canvas.width, 100);
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
 
             if (!isDancing) {
-                // Physics
                 dragon.dy += dragon.gravity;
                 dragon.y += dragon.dy;
 
@@ -92,33 +124,36 @@
                     dragon.grounded = true;
                 }
 
-                // Obstacles
-                obstacles.forEach((obs, index) => {
-                    obs.x -= 8;
+                for (let i = obstacles.length - 1; i >= 0; i--) {
+                    let obs = obstacles[i];
+                    obs.x -= (canvas.width * 0.015); // Dynamic speed based on screen width
+
                     ctx.fillStyle = obs.type === 'log' ? '#8d6e63' : '#2196F3';
                     ctx.fillRect(obs.x, groundY - obs.h, obs.w, obs.h);
 
-                    // Score tracking
+                    // Mobile-friendly Hitbox
+                    if (dragon.x < obs.x + obs.w && dragon.x + dragon.w > obs.x &&
+                        dragon.y + dragon.h > groundY - obs.h) {
+                        score = 0;
+                        scoreEl.innerText = score;
+                        obstacles.length = 0;
+                    }
+
                     if (!obs.passed && obs.x + obs.w < dragon.x) {
                         obs.passed = true;
                         score++;
                         scoreEl.innerText = score;
                         if (score >= 10) isDancing = true;
                     }
+                    if (obs.x < -50) obstacles.splice(i, 1);
+                }
 
-                    // Collision (simplified)
-                    if (dragon.x < obs.x + obs.w && dragon.x + dragon.w > obs.x &&
-                        dragon.y + dragon.h > groundY - obs.h) {
-                        score = 0; // Reset on hit
-                        scoreEl.innerText = score;
-                    }
-                });
-
-                if (frame % 80 === 0) spawnObstacle();
+                if (frame % 70 === 0) spawnObstacle();
             } else {
-                ctx.fillStyle = '#2d5a27';
-                ctx.font = '40px Arial';
-                ctx.fillText("VICTORY DANCE!", canvas.width/2 - 150, canvas.height/2);
+                ctx.fillStyle = '#1b4332';
+                ctx.font = 'bold 24px sans-serif';
+                ctx.textAlign = "center";
+                ctx.fillText("VICTORY DANCE!", canvas.width/2, canvas.height/2);
             }
 
             drawDragon();
@@ -126,12 +161,10 @@
             requestAnimationFrame(update);
         }
 
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' && dragon.grounded && !isDancing) {
-                dragon.dy = dragon.jumpForce;
-                dragon.grounded = false;
-            }
-        });
+        // Mobile listeners
+        window.addEventListener('touchstart', handleInput, { passive: false });
+        window.addEventListener('mousedown', handleInput);
+        window.addEventListener('keydown', (e) => { if(e.code === 'Space') handleInput(); });
 
         update();
     </script>
