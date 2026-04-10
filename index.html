@@ -71,21 +71,63 @@
     }
 
     function drawDragon() {
-        ctx.save();
-        if (isDancing) {
-            ctx.translate(0, Math.sin(frame * 0.2) * 30);
-            ctx.rotate(Math.sin(frame * 0.1) * 0.3);
-        }
-        ctx.fillStyle = '#4CAF50';
-        ctx.fillRect(dragon.x, dragon.y, dragon.w, dragon.h);
-        
-        // Eye
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(dragon.x + 35, dragon.y + 15, 8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+    ctx.save();
+    if (isDancing) {
+        // Your existing Victory Dance movement
+        ctx.translate(0, Math.sin(frame * 0.2) * 30);
+        ctx.rotate(Math.sin(frame * 0.1) * 0.3);
     }
+
+    // 1. BELLY/BODY (A solid green oval)
+    ctx.fillStyle = '#4CAF50';
+    ctx.beginPath();
+    ctx.ellipse(dragon.x + 20, dragon.y + 30, 20, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. HEAD & NECK (A curve leading to a snout)
+    ctx.beginPath();
+    ctx.moveTo(dragon.x + 25, dragon.y + 20); // Neck base
+    ctx.lineTo(dragon.x + 45, dragon.y + 10); // Top of head
+    ctx.lineTo(dragon.x + 50, dragon.y + 20); // Snout
+    ctx.lineTo(dragon.x + 35, dragon.y + 30); // Under chin
+    ctx.closePath();
+    ctx.fill();
+
+    // 3. EYE (Your original eye, positioned on the new head)
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(dragon.x + 42, dragon.y + 15, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'black'; // Add a pupil for character!
+    ctx.beginPath();
+    ctx.arc(dragon.x + 43, dragon.y + 15, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 4. THE WINGS (With Animation!)
+    // This formula calculates the wing tips flapping based on the game frame.
+    let flap = Math.sin(frame * 0.2) * 15;
+    ctx.fillStyle = '#2E7D32'; // Darker green for the wings
+    ctx.beginPath();
+    ctx.moveTo(dragon.x + 15, dragon.y + 20); // Wing root
+    ctx.lineTo(dragon.x + 5, dragon.y + flap); // Upper tip (animated)
+    ctx.lineTo(dragon.x + 0, dragon.y + 20 + (flap/2)); // Lower tip (subtly animated)
+    ctx.closePath();
+    ctx.fill();
+
+    // 5. SPIKES (Red triangles along the spine)
+    ctx.fillStyle = '#C62828';
+    for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        let sX = dragon.x + 10 + (i * 10);
+        let sY = dragon.y + 20;
+        ctx.moveTo(sX, sY);
+        ctx.lineTo(sX + 5, sY - 10); // Point of spike
+        ctx.lineTo(sX + 10, sY);
+        ctx.fill();
+    }
+
+    ctx.restore();
+            }
 
     function update() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
