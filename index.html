@@ -151,7 +151,35 @@
                 obs.x -= 7; // Fixed speed for consistent mobile play
 
                 ctx.fillStyle = obs.type === 'log' ? '#8d6e63' : '#2196F3';
-                ctx.fillRect(obs.x, groundY - obs.h, obs.w, obs.h);
+                if (obs.type === 'log') {
+    // 1. THE LOG (A sturdy cylinder with bark)
+    ctx.fillStyle = '#795548'; // Rich wood brown
+    ctx.fillRect(obs.x, groundY - obs.h, obs.w, obs.h);
+    
+    // Add "Bark" lines for texture
+    ctx.strokeStyle = '#4e342e'; // Darker brown
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(obs.x + 5, groundY - obs.h + 10);
+    ctx.lineTo(obs.x + obs.w - 5, groundY - obs.h + 10);
+    ctx.moveTo(obs.x + 8, groundY - obs.h + 25);
+    ctx.lineTo(obs.x + obs.w - 8, groundY - obs.h + 25);
+    ctx.stroke();
+
+} else {
+    // 2. THE PUDDLE (Flat, organic water)
+    ctx.fillStyle = '#2196F3'; // Bright water blue
+    ctx.beginPath();
+    // We draw an ellipse so it looks flat on the ground
+    ctx.ellipse(obs.x + (obs.w / 2), groundY - 2, obs.w / 1.5, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Add a "Reflection" highlight
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(obs.x + (obs.w / 2) - 5, groundY - 4, obs.w / 3, 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+                }
 
                 // Collision
                 if (dragon.x < obs.x + obs.w && dragon.x + dragon.w > obs.x &&
