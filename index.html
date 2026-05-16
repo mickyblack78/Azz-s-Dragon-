@@ -3,218 +3,437 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dragon Dash</title>
+    <title>Sky Splat</title>
     <style>
-        * { touch-action: none; }
-        body { margin: 0; padding: 0; overflow: hidden; background: #87CEEB; }
-        #ui { position: absolute; top: 20px; left: 20px; font-family: sans-serif; font-size: 20px; font-weight: bold; color: #1b4332; z-index: 10; }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            user-select: none;
+            touch-action: none;
+        }
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #1a0b2e, #4c1c5c, #8b3d88, #cca7a6);
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            pointer-events: none;
+            font-weight: bold;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px #000;
+        }
+        #menu {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid #8b3d88;
+            box-shadow: 0 0 30px rgba(139, 61, 136, 0.5);
+            max-width: 80%;
+        }
+        h1 {
+            margin-top: 0;
+            color: #ff3366;
+            font-size: 36px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        button {
+            background: #ff3366;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.1s, background 0.2s;
+            margin-top: 15px;
+            box-shadow: 0 5px 15px rgba(255, 51, 102, 0.4);
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        button:hover {
+            background: #ff5588;
+        }
+        .instructions {
+            font-size: 14px;
+            color: #ccc;
+            margin: 15px 0;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body>
-    <div id="ui">Obstacles: <span id="score">0</span>/10</div>
-    <canvas id="gameCanvas"></canvas>   
-    <script>
+
+<div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui">
+        <div>Altitude: <span id="altVal">5000</span>m</div>
+        <div>Velocity: <span id="velVal">0</span> km/h</div>
+        <div>Score: <span id="scoreVal">0</span></div>
+    </div>
+    
+    <div id="menu">
+        <h1 id="menuTitle">SKY SPLAT</h1>
+        <p id="menuText" class="instructions">
+            You are plunging from the heavens! Move left/right to catch golden rings for speed points, dodge floating space debris, and aim perfectly for the bullseye Splat Zone at the bottom!
+        </p>
+        <p class="instructions"><strong>Controls:</strong> Move Mouse or Drag Screen left/right to steer.</p>
+        <button id="startBtn" onclick="startGame()">DIVE</button>
+    </div>
+</div>
+
+<script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const scoreEl = document.getElementById('score');
+    
+    // UI Elements
+    const altVal = document.getElementById('altVal');
+    const velVal = document.getElementById('velVal');
+    const scoreVal = document.getElementById('scoreVal');
+    const menu = document.getElementById('menu');
+    const menuTitle = document.getElementById('menuTitle');
+    const menuText = document.getElementById('menuText');
+    const startBtn = document.getElementById('startBtn');
 
-    let score = 0;
-    let isDancing = false;
-    let frame = 0;
-    let groundY; // Define globally
-
-    const dragon = {
-        x: 50, 
-        y: 0, 
-        w: 50, 
-        h: 50, 
-        dy: 0, 
-        jumpForce: -14, 
-        gravity: 0.7, 
-        grounded: false
-    };
-
-    const obstacles = [];
-
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        groundY = canvas.height * 0.85; // Recalculate ground
-        if (dragon.grounded) dragon.y = groundY - dragon.h; 
+    // Web Audio Setup for procedurally generated arcade sounds
+    let audioCtx = null;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
     }
 
-    window.addEventListener('resize', resize);
-    resize(); // Set initial size
+    function playSound(type) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
 
-    // Set initial dragon position after first resize
-    dragon.y = groundY - dragon.h;
+        const now = audioCtx.currentTime;
 
-    function spawnObstacle() {
-        if (score >= 10 || isDancing) return;
-        const isLog = Math.random() > 0.5;
-        obstacles.push({ 
-            x: canvas.width, 
-            type: isLog ? 'log' : 'puddle', 
-            w: 40, 
-            h: isLog ? 40 : 10, 
-            passed: false 
+        if (type === 'ring') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, now); // D5
+            osc.frequency.exponentialRampToValueAtTime(1174.66, now + 0.15); // D6
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.15);
+            osc.start(now);
+            osc.stop(now + 0.15);
+        } else if (type === 'hit') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(220, now);
+            osc.frequency.linearRampToValueAtTime(80, now + 0.2);
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        } else if (type === 'splat') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.5);
+            gain.gain.setValueAtTime(0.8, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.5);
+            osc.start(now);
+            osc.stop(now + 0.5);
+        }
+    }
+
+    // Game Variables
+    let gameState = 'START'; // START, PLAYING, GAMEOVER
+    let player = { x: 0, y: 150, radius: 15, targetX: 0, speed: 8 };
+    let altitude = 5000; // Starting height
+    let fallSpeed = 12;  // Base descent rate
+    let score = 0;
+    let entities = [];   // Obstacles and Rings
+    let particles = [];
+    let splatZone = { x: 0, radius: 90 };
+    let cameraShake = 0;
+    let bgScroll = 0;
+
+    // Handle Resize
+    function resizeCanvas() {
+        canvas.width = Math.min(window.innerWidth, 480);
+        canvas.height = window.innerHeight;
+        player.x = canvas.width / 2;
+        player.targetX = player.x;
+        splatZone.x = canvas.width / 2;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Input Tracking
+    function setTargetX(clientX) {
+        const rect = canvas.getBoundingClientRect();
+        player.targetX = clientX - rect.left;
+    }
+
+    window.addEventListener('mousemove', (e) => { if(gameState === 'PLAYING') setTargetX(e.clientX); });
+    window.addEventListener('touchmove', (e) => { 
+        if(gameState === 'PLAYING') {
+            setTargetX(e.touches[0].clientX); 
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    function spawnEntity() {
+        if (altitude < 400) return; // Don't spawn objects close to the deck
+        
+        let isRing = Math.random() > 0.4;
+        entities.push({
+            x: Math.random() * (canvas.width - 40) + 20,
+            y: canvas.height + 50,
+            radius: isRing ? 12 : 18,
+            isRing: isRing,
+            color: isRing ? '#ffd700' : '#ff3333',
+            pulse: 0
         });
     }
 
-    function handleInput(e) {
-        if (e && e.cancelable) e.preventDefault(); // Critical for mobile
-        if (dragon.grounded && !isDancing) {
-            dragon.dy = dragon.jumpForce;
-            dragon.grounded = false;
+    function createExplosion(x, y, color, count = 10) {
+        for(let i=0; i<count; i++) {
+            particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 0.5) * 10,
+                radius: Math.random() * 4 + 2,
+                color: color,
+                alpha: 1,
+                decay: Math.random() * 0.03 + 0.01
+            });
         }
     }
 
-    function drawDragon() {
-    ctx.save();
-    if (isDancing) {
-        // Your existing Victory Dance movement
-        ctx.translate(0, Math.sin(frame * 0.2) * 30);
-        ctx.rotate(Math.sin(frame * 0.1) * 0.3);
+    function startGame() {
+        initAudio();
+        gameState = 'PLAYING';
+        menu.style.display = 'none';
+        altitude = 5000;
+        fallSpeed = 12;
+        score = 0;
+        entities = [];
+        particles = [];
+        player.x = canvas.width / 2;
+        player.targetX = player.x;
     }
 
-    // 1. BELLY/BODY (A solid green oval)
-    ctx.fillStyle = '#4CAF50';
-    ctx.beginPath();
-    ctx.ellipse(dragon.x + 20, dragon.y + 30, 20, 15, 0, 0, Math.PI * 2);
-    ctx.fill();
+    function triggerGameOver(landed) {
+        gameState = 'GAMEOVER';
+        menu.style.display = 'block';
+        
+        if (landed) {
+            playSound('splat');
+            cameraShake = 25;
+            // Calculate distance from center of target
+            let dist = Math.abs(player.x - splatZone.x);
+            let accuracy = Math.max(0, 100 - Math.floor((dist / splatZone.radius) * 100));
+            let landingScore = accuracy * 25;
+            score += landingScore;
 
-    // 2. HEAD & NECK (A curve leading to a snout)
-    ctx.beginPath();
-    ctx.moveTo(dragon.x + 25, dragon.y + 20); // Neck base
-    ctx.lineTo(dragon.x + 45, dragon.y + 10); // Top of head
-    ctx.lineTo(dragon.x + 50, dragon.y + 20); // Snout
-    ctx.lineTo(dragon.x + 35, dragon.y + 30); // Under chin
-    ctx.closePath();
-    ctx.fill();
-
-    // 3. EYE (Your original eye, positioned on the new head)
-    ctx.fillStyle = 'white';
-    ctx.beginPath();
-    ctx.arc(dragon.x + 42, dragon.y + 15, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'black'; // Add a pupil for character!
-    ctx.beginPath();
-    ctx.arc(dragon.x + 43, dragon.y + 15, 1.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4. THE WINGS (With Animation!)
-    // This formula calculates the wing tips flapping based on the game frame.
-    let flap = Math.sin(frame * 0.2) * 15;
-    ctx.fillStyle = '#2E7D32'; // Darker green for the wings
-    ctx.beginPath();
-    ctx.moveTo(dragon.x + 15, dragon.y + 20); // Wing root
-    ctx.lineTo(dragon.x + 5, dragon.y + flap); // Upper tip (animated)
-    ctx.lineTo(dragon.x + 0, dragon.y + 20 + (flap/2)); // Lower tip (subtly animated)
-    ctx.closePath();
-    ctx.fill();
-
-    // 5. SPIKES (Red triangles along the spine)
-    ctx.fillStyle = '#C62828';
-    for (let i = 0; i < 3; i++) {
-        ctx.beginPath();
-        let sX = dragon.x + 10 + (i * 10);
-        let sY = dragon.y + 20;
-        ctx.moveTo(sX, sY);
-        ctx.lineTo(sX + 5, sY - 10); // Point of spike
-        ctx.lineTo(sX + 10, sY);
-        ctx.fill();
+            menuTitle.innerText = "💥 SPLAT! 💥";
+            menuText.innerHTML = `You hit the Splat Zone with <strong>${accuracy}% accuracy</strong>!<br><br>Landing Bonus: +${landingScore} pts.<br><strong>Total Final Score: ${score}</strong>`;
+            createExplosion(player.x, player.y, '#ff3366', 40);
+        } else {
+            playSound('hit');
+            menuTitle.innerText = "☠️ CRASHED ☠️";
+            menuText.innerHTML = `You broke up in mid-air before hitting the ground!<br><br><strong>Final Score: ${score}</strong>`;
+        }
+        startBtn.innerText = "DIVE AGAIN";
     }
 
-    ctx.restore();
-            }
-
+    // Main Game Loop
     function update() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw Ground
-        ctx.fillStyle = '#5d4037';
-        ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
 
-        if (!isDancing) {
-            dragon.dy += dragon.gravity;
-            dragon.y += dragon.dy;
-
-            if (dragon.y + dragon.h > groundY) {
-                dragon.y = groundY - dragon.h;
-                dragon.dy = 0;
-                dragon.grounded = true;
-            }
-
-            for (let i = obstacles.length - 1; i >= 0; i--) {
-                let obs = obstacles[i];
-                obs.x -= 7; // Fixed speed for consistent mobile play
-
-                ctx.fillStyle = obs.type === 'log' ? '#8d6e63' : '#2196F3';
-                if (obs.type === 'log') {
-    // 1. THE LOG (A sturdy cylinder with bark)
-    ctx.fillStyle = '#795548'; // Rich wood brown
-    ctx.fillRect(obs.x, groundY - obs.h, obs.w, obs.h);
-    
-    // Add "Bark" lines for texture
-    ctx.strokeStyle = '#4e342e'; // Darker brown
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(obs.x + 5, groundY - obs.h + 10);
-    ctx.lineTo(obs.x + obs.w - 5, groundY - obs.h + 10);
-    ctx.moveTo(obs.x + 8, groundY - obs.h + 25);
-    ctx.lineTo(obs.x + obs.w - 8, groundY - obs.h + 25);
-    ctx.stroke();
-
-} else {
-    // 2. THE PUDDLE (Flat, organic water)
-    ctx.fillStyle = '#2196F3'; // Bright water blue
-    ctx.beginPath();
-    // We draw an ellipse so it looks flat on the ground
-    ctx.ellipse(obs.x + (obs.w / 2), groundY - 2, obs.w / 1.5, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Add a "Reflection" highlight
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.beginPath();
-    ctx.ellipse(obs.x + (obs.w / 2) - 5, groundY - 4, obs.w / 3, 2, 0, 0, Math.PI * 2);
-    ctx.stroke();
-                }
-
-                // Collision
-                if (dragon.x < obs.x + obs.w && dragon.x + dragon.w > obs.x &&
-                    dragon.y + dragon.h > groundY - obs.h) {
-                    score = 0;
-                    scoreEl.innerText = score;
-                    obstacles.length = 0;
-                }
-
-                if (!obs.passed && obs.x + obs.w < dragon.x) {
-                    obs.passed = true;
-                    score++;
-                    scoreEl.innerText = score;
-                    if (score >= 10) isDancing = true;
-                }
-                if (obs.x < -50) obstacles.splice(i, 1);
-            }
-
-            if (frame % 75 === 0) spawnObstacle();
-        } else {
-            ctx.fillStyle = '#1b4332';
-            ctx.font = 'bold 24px sans-serif';
-            ctx.textAlign = "center";
-            ctx.fillText("VICTORY DANCE!", canvas.width/2, canvas.height/2);
+        // Screen Shake Logic
+        ctx.save();
+        if (cameraShake > 0) {
+            let dx = (Math.random() - 0.5) * cameraShake;
+            let dy = (Math.random() - 0.5) * cameraShake;
+            ctx.translate(dx, dy);
+            cameraShake *= 0.9;
         }
 
-        drawDragon();
-        frame++;
+        if (gameState === 'PLAYING') {
+            // Drop altitude and increase gravity feel
+            altitude -= (fallSpeed / 60) * 2.5; 
+            if(altitude < 0) altitude = 0;
+
+            // UI Adjustments
+            altVal.innerText = Math.floor(altitude);
+            velVal.innerText = Math.floor(fallSpeed * 25);
+            scoreVal.innerText = score;
+
+            // Background line illusions for high speed
+            bgScroll += fallSpeed;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 5; i++) {
+                let ly = ((bgScroll + i * (canvas.height / 5)) % canvas.height);
+                ctx.beginPath();
+                ctx.moveTo(0, ly); ctx.lineTo(canvas.width, ly);
+                ctx.stroke();
+            }
+
+            // Lerp Player Movement toward input target
+            player.x += (player.targetX - player.x) * 0.15;
+            // Bound inside screen boundaries
+            player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+
+            // Spawning logic based on dynamic intervals
+            if (Math.random() < 0.06 && altitude > 300) {
+                spawnEntity();
+            }
+
+            // Handle Obstacles & Collectibles
+            for (let i = entities.length - 1; i >= 0; i--) {
+                let e = entities[i];
+                e.y -= fallSpeed; // Move upward relative to falling player
+                e.pulse += 0.1;
+
+                // Draw Object
+                ctx.beginPath();
+                if (e.isRing) {
+                    // Draw Golden Ring
+                    ctx.arc(e.x, e.y, e.radius + Math.sin(e.pulse)*2, 0, Math.PI * 2);
+                    ctx.strokeStyle = e.color;
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                } else {
+                    // Draw spiked hazardous debris
+                    ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = e.color;
+                    ctx.fill();
+                    // Spikes
+                    ctx.fillStyle = '#ffaa00';
+                    for(let s=0; s<4; s++) {
+                        ctx.fillRect(e.x - e.radius - 4, e.y - 2, 8, 4);
+                        ctx.translate(e.x, e.y); ctx.rotate(Math.PI/2); ctx.translate(-e.x, -e.y);
+                    }
+                }
+
+                // Check Collisions
+                let dist = Math.hypot(player.x - e.x, player.y - e.y);
+                if (dist < player.radius + e.radius) {
+                    if (e.isRing) {
+                        playSound('ring');
+                        score += 150;
+                        fallSpeed += 1.5; // Extra boost speed!
+                        createExplosion(e.x, e.y, '#ffd700', 6);
+                    } else {
+                        playSound('hit');
+                        cameraShake = 12;
+                        score = Math.max(0, score - 200);
+                        fallSpeed = Math.max(8, fallSpeed - 3); // Slow down penalty
+                        createExplosion(e.x, e.y, '#ff3333', 12);
+                    }
+                    entities.splice(i, 1);
+                    continue;
+                }
+
+                // Cleanup missed objects
+                if (e.y < -50) entities.splice(i, 1);
+            }
+
+            // Handle Approach to Ground & Ground Target Render
+            if (altitude <= 400) {
+                // Ground targets smoothly slide into view based on bottom approach
+                let groundY = canvas.height - (altitude * (canvas.height / 400));
+                
+                // Draw Splat Zone Bullseye
+                ctx.beginPath();
+                ctx.arc(splatZone.x, groundY, splatZone.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 180, 0, 0.4)';
+                ctx.strokeStyle = '#00ff00';
+                ctx.lineWidth = 6;
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(splatZone.x, groundY, splatZone.radius * 0.5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 4;
+                ctx.fill();
+                ctx.stroke();
+
+                // Trigger Splat landing event when hitting exact bottom ground level
+                if (altitude <= 0) {
+                    let landedInZone = Math.abs(player.x - splatZone.x) <= splatZone.radius;
+                    triggerGameOver(landedInZone);
+                }
+            }
+        }
+
+        // Handle Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.alpha -= p.decay;
+            ctx.save();
+            ctx.globalAlpha = p.alpha;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+            ctx.restore();
+            if(p.alpha <= 0) particles.splice(i, 1);
+        }
+
+        // Draw Player Character (Slightly stylized skydiver/rocket ball)
+        if (gameState === 'PLAYING' || gameState === 'START') {
+            // Speed wind lines behind player
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(player.x - 6, player.y - 20); ctx.lineTo(player.x - 6, player.y - 40);
+            ctx.moveTo(player.x + 6, player.y - 20); ctx.lineTo(player.x + 6, player.y - 40);
+            ctx.stroke();
+
+            // Main body
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#00ffcc';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00ffcc';
+            ctx.fill();
+            ctx.shadowBlur = 0; // reset shadow
+
+            // Goggles/Face vector detail
+            ctx.fillStyle = '#111';
+            ctx.fillRect(player.x - 8, player.y - 2, 16, 5);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(player.x - 6, player.y, 4, 3);
+            ctx.fillRect(player.x + 2, player.y, 4, 3);
+        }
+
+        ctx.restore();
         requestAnimationFrame(update);
     }
 
-    // Best mobile listeners
-    window.addEventListener('touchstart', handleInput, { passive: false });
-    window.addEventListener('mousedown', handleInput);
-    update();
-                    </script>
+    // Fire Up Loop Initializer
+    requestAnimationFrame(update);
+</script>
+
 </body>
 </html>
